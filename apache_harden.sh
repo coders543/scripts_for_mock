@@ -39,10 +39,11 @@ grep -rlE '^[[:space:]]*Options[[:space:]].*Indexes' "$DIR" 2>/dev/null | while 
         if ($1 == "Options") {
             match($0, /^[ \t]*/); ind = substr($0, 1, RLENGTH); out = $1; n = 0; ch = 0
             for (i = 2; i <= NF; i++) {
-                if ($i == "Indexes" || $i == "+Indexes" || $i == "-Indexes") { ch = 1; continue }
+                if ($i == "Indexes") { ch = 1; continue }
+                if ($i == "+Indexes") { $i = "-Indexes"; ch = 1 }
                 out = out " " $i; n++
             }
-            if (ch) { if (n == 0) out = out " None"; else out = out " -Indexes"; print ind out; next }
+            if (ch) { if (n == 0) out = out " None"; print ind out; next }
         }
         print
     }' "$f" > "$tmp" && cat "$tmp" > "$f"; rm -f "$tmp"
