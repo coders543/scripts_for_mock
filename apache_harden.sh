@@ -57,7 +57,7 @@ fi
 chown -R root:root "$DIR" 2>/dev/null
 
 # 4) disable modules that leak info or expose directories (Debian/Ubuntu only)
-if have a2dismod; then for m in autoindex status info userdir; do a2dismod -q "$m" >/dev/null 2>&1; done; fi
+if have a2dismod; then for m in autoindex status info userdir; do a2dismod -f -q "$m" </dev/null >/dev/null 2>&1; done; fi
 
 # 5) test, restart, verify
 for ctl in apache2ctl apachectl httpd; do have "$ctl" && break; ctl=""; done
