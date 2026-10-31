@@ -24,10 +24,42 @@ iptables -P INPUT DROP
 - See the drops: `journalctl -k | grep FW-DROP`
 
 ---
-Safety net 
+
+### Safety net
+
+Run this first. It reopens the firewall after 2 minutes if you lock yourself out.
+
+```
 nohup bash -c 'sleep 120 && iptables -P INPUT ACCEPT && iptables -F INPUT' >/dev/null 2>&1 &
 echo $!
+```
+
+**When to use it**
+
+- Right before you paste the firewall rules. Always run it first.
+- Any time you change firewall rules on a box you're connected to over SSH.
+
+**How to use it**
+
+1. Run the two lines above. It prints a number. Write it down.
+2. Paste your firewall rules.
+3. Open a second terminal. Test SSH.
+4. Test the scored services from another machine.
+5. Everything works? Cancel the revert:
+   ```
+   kill <the number>
+   ```
+6. Something broke? Do nothing. In 2 minutes the firewall opens again.
+
+**Remember**
+
+- Don't cancel it until you have tested.
+- Forgot the number? Run `pkill -f "sleep 120"`.
+- Cancelled it and then found a problem? Run `iptables -P INPUT ACCEPT` yourself.
+- Save the rules after you cancel the revert. A reboot will wipe them otherwise.
+
 ---
+
 ## 0. Run the scripts (the fast way)
 
 ```
