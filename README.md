@@ -24,7 +24,10 @@ iptables -P INPUT DROP
 - See the drops: `journalctl -k | grep FW-DROP`
 
 ---
-
+Safety net 
+nohup bash -c 'sleep 120 && iptables -P INPUT ACCEPT && iptables -F INPUT' >/dev/null 2>&1 &
+echo $!
+---
 ## 0. Run the scripts (the fast way)
 
 ```
