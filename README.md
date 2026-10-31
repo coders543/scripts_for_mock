@@ -6,6 +6,25 @@ Do NOT lock yourself out and do NOT break a scored service. Uptime beats hardeni
 
 ---
 
+## 0. Quick firewall (simple INPUT lockdown)
+
+```
+iptables -F INPUT
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -A INPUT -p tcp -m multiport --dports 22,3001,8200 -m conntrack --ctstate NEW -j ACCEPT
+iptables -A INPUT -p icmp -j ACCEPT
+iptables -A INPUT -m limit --limit 5/min -j LOG --log-prefix "FW-DROP: "
+iptables -P INPUT DROP
+```
+
+- Change the `--dports` list to match the scored ports on this box (check with `ss -tulnp`).
+- Keep your current SSH session open and test from a second session.
+- Locked out? Run `iptables -P INPUT ACCEPT` from a console.
+- See the drops: `journalctl -k | grep FW-DROP`
+
+---
+
 ## 0. Run the scripts (the fast way)
 
 ```
@@ -26,6 +45,60 @@ Restore a service by hand:
 tar -xzf /root/ccdc_backups/<service>/PRISTINE_<service>_configs.tgz -C /
 systemctl restart <service>
 ```
+
+### Restore a service by hand (full steps)
+
+Use this if a script prints FAILED and the rollback did not fix it, or a scored service is down after hardening. **Restore first, investigate later.**
+
+1. See what backups exist. `PRISTINE_...` is the original state from the first run. The timestamped files are the state before each later run (or your manual backups from sections 6 to 10).
+   ```
+   ls -lh /root/ccdc_backups/<service>/
+   ```
+2. Preview what is inside before you extract (so you know what it will overwrite).
+   ```
+   tar -tzf /root/ccdc_backups/<service>/PRISTINE_<service>_configs.tgz | head
+   ```
+3. Extract it over the live files. Paths are stored without the leading `/`, so `-C /` puts everything back where it came from.
+   ```
+   tar -xzf /root/ccdc_backups/<service>/PRISTINE_<service>_configs.tgz -C /
+   ```
+   To undo only your last run instead of going all the way back, use the newest timestamped file, for example `ssh_1915.tgz`.
+4. Test the config BEFORE restarting (a bad config plus a restart means a down service).
+5. Restart and check the service from another machine.
+
+| Service | Test config first | Restart |
+|---|---|---|
+| SSH | `sshd -t` | `systemctl restart ssh` (Rocky: `sshd`) |
+| Apache | `apache2ctl -t` (RHEL: `apachectl -t`) | `systemctl restart apache2` (RHEL: `httpd`) |
+| DNS / BIND | `named-checkconf` | `systemctl restart bind9` (RHEL: `named`) |
+| Samba | `testparm -s` | `systemctl restart smbd nmbd` (RHEL: `smb nmb`) |
+| FTP | none, just restart and test a real login | `systemctl restart vsftpd` (or `proftpd`) |
+
+Other things you may need to put back:
+
+```
+# Everything in /etc (manual backup from section 1)
+tar -xzf /root/ccdc_backups/manual/etc_<HHMM>.tgz -C /
+
+# /etc/hosts (section 12). It is immutable, so unlock it first
+chattr -i /etc/hosts && cp -a /root/ccdc_backups/hosts.bak /etc/hosts
+
+# Firewall locked you or the scorer out: open everything immediately
+iptables -P INPUT ACCEPT && iptables -P OUTPUT ACCEPT && iptables -F
+
+# Web root (section 16)
+rsync -av --delete /root/ccdc_backups/var_www_bak/ /var/www/
+
+# Databases (section 16)
+mysql -u root -p < /root/ccdc_backups/all_db.sql
+```
+
+Gotchas:
+- If tar says `Operation not permitted` or `Cannot open`, the file is probably immutable. Run `lsattr <file>`, then `chattr -i <file>` (section 13), extract again, and re-lock it.
+- SSH: keep your current session open and test a NEW login before closing it.
+- Do not restart a service twice in a row and hope. Read the error: `systemctl status <service>` and `journalctl -u <service> -n 30 --no-pager`.
+- If it is still down after restoring, file a Scoring Service Check ticket (10 points) before paying for a reset (60 points) or a consultation (100 to 200 points).
+- Write down what broke and what you restored (time, host, what, how).
 
 ---
 
